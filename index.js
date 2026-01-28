@@ -6,52 +6,54 @@ const app = express();
 /* ================= CONFIG ================= */
 const LINE_CONFIG = {
   channelAccessToken: process.env.LINE_TOKEN,
-  channelSecret: process.env.LINE_SECRET
+  channelSecret: process.env.LINE_SECRET,
 };
 
-/* ================= MIDDLEWARE ================= */
-app.use(express.json());
+const client = new line.Client(LINE_CONFIG);
 
-/* ================= HOME ================= */
-app.get("/", (req, res) => {
-  res.status(200).send("บอทเปิดบ้านกำลังทำงาน");
-});
+/* ================= MIDDLEWARE ================= */
+app.use("/webhook", line.middleware(LINE_CONFIG));
 
 /* ================= WEBHOOK ================= */
-app.post("/webhook", line.middleware(LINE_CONFIG), async (req, res) => {
+app.post("/webhook", async (req, res) => {
   try {
     const event = req.body.events[0];
     if (!event || event.type !== "message") {
       return res.sendStatus(200);
     }
 
-    const text = event.message.text.trim();
+    const text = event.message.text;
     const replyToken = event.replyToken;
 
-    const client = new line.Client(LINE_CONFIG);
-
+    // ทดสอบระบบ
     if (text === "PING") {
       await client.replyMessage(replyToken, {
         type: "text",
-        text: "🟢 Bot Online"
+        text: "🟢 Bot Online",
       });
     }
 
+    // รับโพย 3/100
     if (/^\d+\/\d+$/.test(text)) {
       await client.replyMessage(replyToken, {
         type: "text",
-        text: `✅ รับโพย ${text}`
+        text: `✅ รับโพย ${text}`,
       });
     }
 
     return res.sendStatus(200);
   } catch (err) {
-    console.error("WEBHOOK ERROR:", err);
+    console.error("ERROR:", err);
     return res.sendStatus(200);
   }
 });
 
-/* ================= START SERVER ================= */
+/* ================= ROOT (กัน 502) ================= */
+app.get("/", (req, res) => {
+  res.send("LINE Dice Bot is running");
+});
+
+/* ================= PORT ================= */
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
   console.log("Bot running on port", PORT);
