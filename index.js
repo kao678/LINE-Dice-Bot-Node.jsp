@@ -1,56 +1,60 @@
 const express = require("express");
 const line = require("@line/bot-sdk");
-const { google } = require("googleapis");
 
-/************ CONFIG ************/
-const LINE_CONFIG = {
-  channelAccessToken: "PUT_LINE_TOKEN",
-  channelSecret: "PUT_LINE_SECRET"
+const app = express();
+
+/************ LINE CONFIG ************/
+const config = {
+  channelAccessToken: process.env.LINE_TOKEN,
+  channelSecret: process.env.LINE_SECRET
 };
 
-const SPREADSHEET_ID = "18YxFEYT-NzYXuQP9aUMD3G1TPkvUCHwxU_S5gSmUO6M";
+const client = new line.Client(config);
 
-/************ GOOGLE SHEET ************/
-const auth = new google.auth.GoogleAuth({
-  keyFile: "service-account.json",
-  scopes: ["https://www.googleapis.com/auth/spreadsheets"]
-});
+app.use(express.json());
 
-const sheets = google.sheets({ version: "v4", auth });
-
-/************ EXPRESS ************/
-const app = express();
-app.post("/webhook", line.middleware(LINE_CONFIG), async (req, res) => {
+/************ WEBHOOK ************/
+app.post("/", async (req, res) => {
   try {
-    const event = req.body.events[0];
-    if (!event || event.type !== "message") return res.sendStatus(200);
+    const events = req.body.events;
+    if (!events || events.length === 0) return res.sendStatus(200);
+
+    const event = events[0];
+    if (event.type !== "message" || event.message.type !== "text") {
+      return res.sendStatus(200);
+    }
 
     const text = event.message.text.trim();
     const replyToken = event.replyToken;
-    const userId = event.source.userId;
 
     if (text === "PING") {
-      await replyText(replyToken, "🟢 Bot Online");
+      await client.replyMessage(replyToken, {
+        type: "text",
+        text: "🟢 Bot Online"
+      });
     }
 
     if (/^\d+\/\d+$/.test(text)) {
-      await replyText(replyToken, `✅ รับโพย ${text}`);
+      await client.replyMessage(replyToken, {
+        type: "text",
+        text: `✅ รับโพย ${text}`
+      });
     }
 
-    res.sendStatus(200);
-  } catch (e) {
-    res.sendStatus(200);
+    return res.sendStatus(200);
+  } catch (err) {
+    console.error(err);
+    return res.sendStatus(200);
   }
 });
 
-app.listen(3000, () => console.log("Bot running on port 3000"));
+/************ HEALTH CHECK ************/
+app.get("/", (req, res) => {
+  res.send("OK");
+});
 
-/************ LINE ************/
-const client = new line.Client(LINE_CONFIG);
-
-function replyText(token, text) {
-  return client.replyMessage(token, {
-    type: "text",
-    text
-  });
-}
+/************ START SERVER ************/
+const PORT = process.env.PORT || 10000;
+app.listen(PORT, () => {
+  console.log("Server running on", PORT);
+});
